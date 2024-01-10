@@ -24,8 +24,11 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
     function _prePayment( $data )
     {
         $vars = new stdClass();
+
+        $order_id = $data['order_id'];
+        $orderpayment_id = $data['orderpayment_id'];
         
-        $vars->callback_url = JUri::root() . "index.php?option=com_j2store&view=checkout&task=confirmPayment&orderpayment_type=$this->_element&paction=callback";
+        $vars->callback_url = JUri::root() . "index.php?option=com_j2store&view=checkout&task=confirmPayment&orderpayment_id=$orderpayment_id$&orderpayment_type=$this->_element&paction=callback";
 
         $merchant_id = $this->params->get('zarinpal_merchant_id');
 
@@ -35,11 +38,11 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
                 "amount" => $data['orderpayment_amount'],
                 "callback_url" => $vars->callback_url,
                 "currency" =>  $this->params->get('zarinpal_currency'),
-                "description" => ' پرداخت برای سفارش :  ' . $data['order_id'],
+                "description" => ' پرداخت برای سفارش :  ' . $order_id,
                 "metadata" => [
                     "email" => "0",
                     "mobile"=>"0",
-                    "order_id" => $data['order_id']
+                    "order_id" => $order_id
                 ],
             );
 
@@ -76,6 +79,104 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
       
         $html = $this->_getLayout('prepayment', $vars);    
         return $html;
+    }
+
+
+    function _postPayment( $data )
+    {
+        // Process the payment
+        $app = JFactory::getApplication();
+        $vars = new JObject();
+        $merchant_id = $this->params->get('zarinpal_merchant_id');
+        $status = $app->input->getString('Status');
+        $order_id = (int)$app->input->getString('orderpayment_id');
+        $order = F0FTable::getInstance('Order', 'J2StoreTable')->getClone();
+
+        if ($order->load($order_id)) {
+            if ($status === 'OK') {
+
+                $params =[
+                    "merchant_id" => $merchant_id,
+                    "amount" => (int) $order->order_total,
+                    "authority" => $app->input->getString('Authority'),
+                ];  
+        
+                $jsonData = json_encode($params);
+                $ch = curl_init('https://api.zarinpal.com/pg/v4/payment/verify.json');
+                curl_setopt($ch, CURLOPT_USERAGENT, 'Zarinpal Rest Api v4');
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+                    'Content-Type: application/json',
+                    'Content-Length: ' . strlen($jsonData)
+                ));
+        
+                $result = curl_exec($ch);
+                $err = curl_error($ch);
+                $result = json_decode($result, true, JSON_PRETTY_PRINT);
+                curl_close($ch);
+    
+                if (! $err) {
+                    $zarinpal_status_code = $result['data']['code'];
+
+                    if ($zarinpal_status_code === 100) {
+                        $ref_id = $result['data']['ref_id'];
+                        $this->confirmOrder($order, $ref_id);
+                        $vars->message = 'تراکنش موفق.';
+                        $vars->ref_id = $ref_id;
+                    } elseif ($zarinpal_status_code === 101) {
+                        $ref_id = $result['data']['ref_id'];
+
+                        if ($this->getPaymentStatus($order->order_state_id) == JText::_('J2STORE_PENDING')) {
+                            $this->confirmOrder($order, $ref_id);
+                            $vars->message = 'تراکنش موفق.';
+                            $vars->ref_id = $ref_id;
+                        } else {
+                            $vars->message = 'تراکنش موفق بوده و قبلا یکبار تایید شده است.';
+                            $vars->ref_id = $ref_id;
+                        }
+                    } else {
+                        $vars->message = self::error_message($result['errors']['code']);
+                    }
+                } else {
+                    $vars->message = 'خطا در اتصال به درگاه برای تایید تراکنش : <br> ';
+                    $vars->message .= $err;
+                }
+            } elseif ($status === 'NOK') {
+                $vars->message = "پرداخت توسط کاربر لغو شد.";
+            } else {
+                $vars->message = "اطلاعات بازگشت از درگاه نادرست می باشند";
+            }
+        } else {
+            $vars->message = "سفارش پیدا نشد.";
+        }
+        
+        $html = $this->_getLayout('message', $vars);
+
+        return $html;
+    }
+
+    function getPaymentStatus($payment_status) {
+    	$status = '';
+    	switch($payment_status) {
+			case '1': $status = JText::_('J2STORE_CONFIRMED'); break;
+			case '2': $status = JText::_('J2STORE_PROCESSED'); break;
+			case '3': $status = JText::_('J2STORE_FAILED'); break;
+			case '4': $status = JText::_('J2STORE_PENDING'); break;
+			case '5': $status = JText::_('J2STORE_INCOMPLETE'); break;
+			default: $status = JText::_('J2STORE_PENDING'); break;	
+    	}
+    	return $status;
+    }
+
+    public function confirmOrder($order, $ref_id)
+    {
+        $order->transaction_id = $ref_id;
+        $order->transaction_status = 'Paid';
+        $order->payment_complete();
+        $order->empty_cart();
+        $order->store();    
     }
 
     /**

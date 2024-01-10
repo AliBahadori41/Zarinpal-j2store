@@ -11,4 +11,14 @@
  
 defined('_JEXEC') or die('Restricted access'); ?>
 
-<?php echo $vars->message; ?>
+<h5>
+    زرین‌پال
+</h5>
+<p>
+    <strong>وضعیت : </strong>
+    <?php echo $vars->message; ?>
+</p>
+<p>
+    <strong>شناسه تراکنش : </strong>
+    <?php echo $vars->ref_id ?? '-';?>
+</p>
