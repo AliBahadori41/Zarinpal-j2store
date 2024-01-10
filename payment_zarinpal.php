@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @package     Zarinpal payment gateway for j2store.
  * @subpackage  com_j2store
@@ -9,30 +10,30 @@
  */
 
 defined('_JEXEC') or die('Restricted access');
-require_once (JPATH_ADMINISTRATOR.'/components/com_j2store/library/plugins/payment.php');
+require_once(JPATH_ADMINISTRATOR . '/components/com_j2store/library/plugins/payment.php');
 class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
 {
-	var $_element = 'payment_zarinpal';
+    var $_element = 'payment_zarinpal';
 
 
-    function _renderForm( $data )
+    function _renderForm($data)
     {
-        $html = $this->_getLayout('form', $data);  
+        $html = $this->_getLayout('form', $data);
         return $html;
     }
 
-    function _prePayment( $data )
+    function _prePayment($data)
     {
         $vars = new stdClass();
 
         $order_id = $data['order_id'];
         $orderpayment_id = $data['orderpayment_id'];
-        
+
         $vars->callback_url = JUri::root() . "index.php?option=com_j2store&view=checkout&task=confirmPayment&orderpayment_id=$orderpayment_id$&orderpayment_type=$this->_element&paction=callback";
 
         $merchant_id = $this->params->get('zarinpal_merchant_id');
 
-        if (! is_null($merchant_id)) {
+        if (!is_null($merchant_id)) {
             $params = array(
                 "merchant_id" => $merchant_id,
                 "amount" => $data['orderpayment_amount'],
@@ -41,7 +42,7 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
                 "description" => ' پرداخت برای سفارش :  ' . $order_id,
                 "metadata" => [
                     "email" => "0",
-                    "mobile"=>"0",
+                    "mobile" => "0",
                     "order_id" => $order_id
                 ],
             );
@@ -62,7 +63,7 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
             $result = json_decode($result, true, JSON_PRETTY_PRINT);
             curl_close($ch);
 
-            if (! $err) {
+            if (!$err) {
 
                 if ($result['data']['code'] === 100) {
                     $vars->zarinpal = 'https://www.zarinpal.com/pg/StartPay/' . $result['data']['authority'];
@@ -72,17 +73,16 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
             } else {
                 $vars->errors = ['message' => 'خطا در اتصال به درگاه  : ' . $err];
             }
-			
         } else {
             $vars->errors = ['message' => "مرچنت کد درگاه وارد نشده، لطفا از قسمت تنظیمات مربوط به افزونه مرچنت کد را وارد کنید."];
         }
-      
-        $html = $this->_getLayout('prepayment', $vars);    
+
+        $html = $this->_getLayout('prepayment', $vars);
         return $html;
     }
 
 
-    function _postPayment( $data )
+    function _postPayment($data)
     {
         // Process the payment
         $app = JFactory::getApplication();
@@ -95,12 +95,12 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
         if ($order->load($order_id)) {
             if ($status === 'OK') {
 
-                $params =[
+                $params = [
                     "merchant_id" => $merchant_id,
                     "amount" => (int) $order->order_total,
                     "authority" => $app->input->getString('Authority'),
-                ];  
-        
+                ];
+
                 $jsonData = json_encode($params);
                 $ch = curl_init('https://api.zarinpal.com/pg/v4/payment/verify.json');
                 curl_setopt($ch, CURLOPT_USERAGENT, 'Zarinpal Rest Api v4');
@@ -111,13 +111,13 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
                     'Content-Type: application/json',
                     'Content-Length: ' . strlen($jsonData)
                 ));
-        
+
                 $result = curl_exec($ch);
                 $err = curl_error($ch);
                 $result = json_decode($result, true, JSON_PRETTY_PRINT);
                 curl_close($ch);
-    
-                if (! $err) {
+
+                if (!$err) {
                     $zarinpal_status_code = $result['data']['code'];
 
                     if ($zarinpal_status_code === 100) {
@@ -151,23 +151,36 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
         } else {
             $vars->message = "سفارش پیدا نشد.";
         }
-        
+
         $html = $this->_getLayout('message', $vars);
 
         return $html;
     }
 
-    function getPaymentStatus($payment_status) {
-    	$status = '';
-    	switch($payment_status) {
-			case '1': $status = JText::_('J2STORE_CONFIRMED'); break;
-			case '2': $status = JText::_('J2STORE_PROCESSED'); break;
-			case '3': $status = JText::_('J2STORE_FAILED'); break;
-			case '4': $status = JText::_('J2STORE_PENDING'); break;
-			case '5': $status = JText::_('J2STORE_INCOMPLETE'); break;
-			default: $status = JText::_('J2STORE_PENDING'); break;	
-    	}
-    	return $status;
+    function getPaymentStatus($payment_status)
+    {
+        $status = '';
+        switch ($payment_status) {
+            case '1':
+                $status = JText::_('J2STORE_CONFIRMED');
+                break;
+            case '2':
+                $status = JText::_('J2STORE_PROCESSED');
+                break;
+            case '3':
+                $status = JText::_('J2STORE_FAILED');
+                break;
+            case '4':
+                $status = JText::_('J2STORE_PENDING');
+                break;
+            case '5':
+                $status = JText::_('J2STORE_INCOMPLETE');
+                break;
+            default:
+                $status = JText::_('J2STORE_PENDING');
+                break;
+        }
+        return $status;
     }
 
     public function confirmOrder($order, $ref_id)
@@ -176,7 +189,7 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
         $order->transaction_status = 'Paid';
         $order->payment_complete();
         $order->empty_cart();
-        $order->store();    
+        $order->store();
     }
 
     /**
@@ -194,70 +207,70 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
                 $message = ('اطلاعات ارسال شده نادرست می باشد.');
                 $message .= "<br>" . ('1- مرچنت کد داخل تنظیمات ثبت نشده یا صحیح نمی باشد');
                 $message .= "<br>" . ('2- مبلغ پرداختی کمتر یا بیشتر از حد مجاز می باشد');
-            break; 
+                break;
             case $code == -10:
                 $message = ('ای پی یا مرچنت كد پذیرنده صحیح نیست.');
-            break; 
+                break;
             case $code == -11:
                 $message = ('مرچنت کد فعال نیست، پذیرنده مشکل خود را به امور مشتریان زرین‌پال ارجاع دهد.');
-            break; 
+                break;
             case $code == -12:
                 $message = ('تلاش بیش از دفعات مجاز در یک بازه زمانی کوتاه به امور مشتریان زرین پال اطلاع دهید');
-            break; 
+                break;
             case $code == -15:
                 $message = ('درگاه پرداخت به حالت تعلیق در آمده است، پذیرنده مشکل خود را به امور مشتریان زرین‌پال ارجاع دهد.');
-            break; 
+                break;
             case $code == -16:
                 $message = ('سطح تایید پذیرنده پایین تر از سطح نقره ای است.');
-            break; 
+                break;
             case $code == -17:
                 $message = ('محدودیت پذیرنده در سطح آبی');
-            break; 
+                break;
             case $code == -30:
                 $message = ('پذیرنده اجازه دسترسی به سرویس تسویه اشتراکی شناور را ندارد.');
-            break; 
+                break;
             case $code == -31:
                 $message = ('حساب بانکی تسویه را به پنل اضافه کنید. مقادیر وارد شده برای تسهیم درست نیست. پذیرنده جهت استفاده از خدمات سرویس تسویه اشتراکی شناور، باید حساب بانکی معتبری به پنل کاربری خود اضافه نماید.');
-            break; 
+                break;
             case $code == -32:
                 $message = ('مبلغ وارد شده از مبلغ کل تراکنش بیشتر است.');
-            break; 
+                break;
             case $code == -33:
                 $message = ('درصدهای وارد شده صحیح نیست.');
-            break; 
+                break;
             case $code == -34:
                 $message = ('مبلغ وارد شده از مبلغ کل تراکنش بیشتر است.');
-            break; 
+                break;
             case $code == -35:
                 $message = ('تعداد افراد دریافت کننده تسهیم بیش از حد مجاز است.');
-            break; 
+                break;
             case $code == -36:
                 $message = ('حداقل مبلغ جهت تسهیم باید 10000 ریال باشد');
-            break; 
+                break;
             case $code == -37:
                 $message = ('یک یا چند شماره شبای وارد شده برای تسهیم از سمت بانک غیر فعال است.');
-            break; 
+                break;
             case $code == -38:
                 $message = ('خط،عدم تعریف صحیح شبا،لطفا دقایقی دیگر تلاش کنید.');
-            break; 
+                break;
             case $code == -39:
                 $message = ('خطایی رخ داده است به امور مشتریان زرین پال اطلاع دهید');
-            break; 
+                break;
             case $code == -50:
                 $message = ('مبلغ پرداخت شده با مقدار مبلغ ارسالی در متد وریفای متفاوت است.');
-            break; 
+                break;
             case $code == -51:
                 $message = ('پرداخت ناموفق');
-            break; 
+                break;
             case $code == -52:
                 $message = ('خطای غیر منتظره‌ای رخ داده است. پذیرنده مشکل خود را به امور مشتریان زرین‌پال ارجاع دهد.');
-            break; 
+                break;
             case $code == -53:
                 $message = ('پرداخت متعلق به این مرچنت کد نیست.');
-            break; 
+                break;
             case $code == -54:
                 $message = ('اتوریتی نامعتبر است.');
-            break;
+                break;
         }
 
         return $message;
