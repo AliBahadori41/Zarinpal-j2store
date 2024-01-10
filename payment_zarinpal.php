@@ -25,7 +25,7 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
     {
         $vars = new stdClass();
         
-        $vars->callback_url = JUri::root() . "/index.php?option=com_j2store&view=checkout&task=confirmPayment&orderpayment_type=$this->_element&paction=callback";
+        $vars->callback_url = JUri::root() . "index.php?option=com_j2store&view=checkout&task=confirmPayment&orderpayment_type=$this->_element&paction=callback";
 
         $merchant_id = $this->params->get('zarinpal_merchant_id');
 
@@ -62,7 +62,7 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
             if (! $err) {
 
                 if ($result['data']['code'] === 100) {
-
+                    $vars->zarinpal = 'https://www.zarinpal.com/pg/StartPay/' . $result['data']['authority'];
                 } else {
                     $vars->errors = ['message' => self::error_message($result['errors']['code'])];
                 }
@@ -78,7 +78,7 @@ class plgJ2StorePayment_zarinpal extends J2StorePaymentPlugin
         return $html;
     }
 
-        /**
+    /**
      * Zarinpal error message.
      * 
      * @param int $code

@@ -23,8 +23,7 @@ defined('_JEXEC') or die('Restricted access');
     </div>
     
 <?php else: ?>
-    <form action="<?php echo $vars->zarinpal; ?>" method="post" name="adminForm" enctype="multipart/form-data">
-        <br />
-        <input type="submit" class="j2store_cart_button button btn btn-primary" value="تایید و پرداخت" />
-    </form>
+    <a href="<?php echo $vars->zarinpal; ?>" class="button btn btn-primary">
+        تایید و پرداخت
+    </a>
 <?php endif; ?>
